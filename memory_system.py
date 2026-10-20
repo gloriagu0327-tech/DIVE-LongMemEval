@@ -72,9 +72,9 @@ def ingest_sessions(question_item):
         except Exception:
             facts = []
         if facts:
-            # 提炼成功：把每条事实当作一条记忆
+            # 提炼成功：把每条事实当作一条记忆，并记录来自哪个会话（session_idx）
             for f in facts:
-                memories.append({"text": f, "role": "user", "date": date})
+                memories.append({"text": f, "role": "user", "date": date, "session_idx": i})
         else:
             # 提炼失败：退回去原样存对话轮次，保证不崩
             for turn in session:
@@ -84,6 +84,7 @@ def ingest_sessions(question_item):
                         "text": content,
                         "role": turn.get("role", "unknown"),
                         "date": date,
+                        "session_idx": i,
                     })
     return memories
 
@@ -104,15 +105,63 @@ def _keywords(text):
     return [w for w in words if w not in STOPWORDS and len(w) > 2]
 
 
-def retrieve(question, memories, top_k=config.TOP_K):
+# ==========================================================
+# 语义检索（V5）：用 embedding 向量找"意思相近"的记忆
+# 比关键词检索准得多，对 preference / assistant / multi-session 提升明显
+# ==========================================================
+_embedder = None   # 懒加载：第一次用到才加载模型
+
+
+def _get_embedder():
+    global _embedder
+    if _embedder is None:
+        from sentence_transformers import SentenceTransformer
+        # 多语言小模型，能处理中英文混合（数据是英文，用这模型也够）
+        _embedder = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    return _embedder
+
+
+def _semantic_retrieve(question, memories, top_k):
+    """语义检索：给每条记忆和问题算向量，按余弦相似度排序取前 top_k。"""
+    try:
+        model = _get_embedder()
+        texts = [m["text"] for m in memories]
+        q_vec = model.encode([question])
+        m_vecs = model.encode(texts)
+        # 余弦相似度
+        import numpy as np
+        q_norm = q_vec / np.linalg.norm(q_vec)
+        m_norm = m_vecs / np.linalg.norm(m_vecs, axis=1, keepdims=True)
+        sims = (m_norm @ q_norm.T).flatten()
+        # 按相似度排序
+        order = sims.argsort()[::-1]
+        picked = [memories[i] for i in order[:top_k]]
+        return picked
+    except Exception as e:
+        # 语义检索失败就退回关键词
+        print(f"[警告] 语义检索失败({e})，退回关键词检索")
+        return _keyword_retrieve(question, memories, top_k)
+
+
+def _keyword_retrieve(question, memories, top_k):
+    """关键词检索：原逻辑（按关键词重合度）。"""
     q_words = set(_keywords(question))
     scored = []
     for m in memories:
         m_words = set(_keywords(m["text"]))
         score = len(q_words & m_words)
         scored.append((score, m))
+    scored = [x for x in scored if x[0] > 0]
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [m for score, m in scored[:top_k] if score > 0]
+    return [m for score, m in scored[:top_k]]
+
+
+def retrieve(question, memories, top_k=config.TOP_K):
+    """检索总入口：优先语义检索（如开启），否则关键词检索。"""
+    # 语义检索开关
+    if getattr(config, "USE_SEMANTIC", False):
+        return _semantic_retrieve(question, memories, top_k)
+    return _keyword_retrieve(question, memories, top_k)
 
 
 # ----------------------------------------------------------
