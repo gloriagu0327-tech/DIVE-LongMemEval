@@ -29,7 +29,7 @@ flowchart TD
 | `data/` | LongMemEval Oracle 数据集 |
 | `predictions.jsonl` | 答题结果，每行 `{"question_id": ..., "hypothesis": ...}` |
 | `config.example.py` | 配置模板（不含真实 API key，供参考） |
-| `个人技术方案.md` | 完整个人技术方案：架构、记忆机制、选型论证、实验结果与后续计划 |
+| `个人技术方案 .md` | 完整个人技术方案：架构、记忆机制、选型论证、实验结果与后续计划 |
 
 ## 快速开始
 
@@ -61,7 +61,7 @@ flowchart TD
 
 ## 选型与设计说明
 
-详细的方案比较与取舍、记忆机制设计、已知局限及后续计划，见 [个人技术方案.md](https://github.com/gloriagu0327-tech/DIVE-LongMemEval/blob/main/%E4%B8%AA%E4%BA%BA%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88.md)。
+详细的方案比较与取舍、记忆机制设计、已知局限及后续计划，见 [个人技术方案 .md](https://github.com/gloriagu0327-tech/DIVE-LongMemEval/blob/main/%E4%B8%AA%E4%BA%BA%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88%20.md)。
 
 ## 后续计划
 
